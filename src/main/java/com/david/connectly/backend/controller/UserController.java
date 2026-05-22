@@ -6,8 +6,10 @@ import com.david.connectly.backend.dto.response.UserResponse;
 import com.david.connectly.backend.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -43,5 +45,12 @@ public class UserController {
             @PathVariable Long id,
             @Valid @RequestBody UpdateProfileRequest request) {
         return ResponseEntity.ok(userService.updateProfile(id, request));
+    }
+
+    @PutMapping(value = "/{id}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UserResponse> uploadAvatar(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.ok(userService.uploadAvatar(id, file));
     }
 }

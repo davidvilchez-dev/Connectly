@@ -1,5 +1,7 @@
-package com.david.connectly.backend.security;
+package com.david.connectly.backend.config;
 
+import com.david.connectly.backend.security.CustomUserDetailsService;
+import com.david.connectly.backend.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -67,8 +69,7 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Configura el origen de tu Frontend en React (ej. localhost:5173 o
-        // localhost:3000)
+        // Configura el origen de tu Frontend en React (ej. localhost:5173 o localhost:3000)
         configuration.setAllowedOrigins(List.of("*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));

@@ -13,7 +13,9 @@ import com.david.connectly.backend.repository.FollowRepository;
 import com.david.connectly.backend.repository.PostRepository;
 import com.david.connectly.backend.repository.UserRepository;
 import com.david.connectly.backend.security.SecurityUtils;
+import com.david.connectly.backend.service.CloudinaryService;
 import com.david.connectly.backend.service.UserService;
+import org.springframework.web.multipart.MultipartFile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -30,6 +32,7 @@ public class UserServiceImpl implements UserService {
     private final FollowRepository followRepository;
     private final UserMapper userMapper;
     private final PostMapper postMapper;
+    private final CloudinaryService cloudinaryService;
 
     @Override
     public UserResponse getUserProfile(Long id) {
@@ -105,6 +108,31 @@ public class UserServiceImpl implements UserService {
             currentUser.setAvatarUrl(request.getAvatarUrl());
         }
         currentUser.setUpdatedAt(LocalDateTime.now());
+
+        User saved = userRepository.save(currentUser);
+        return userMapper.toResponse(saved);
+    }
+
+    @Override
+    public UserResponse uploadAvatar(Long id, MultipartFile file) {
+        String currentEmail = SecurityUtils.getCurrentUserEmail();
+        if (currentEmail == null) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+
+        User currentUser = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found for authenticated principal"));
+        if (!currentUser.getId().equals(id)) {
+            throw new ConflictException("You can only update your own avatar");
+        }
+
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Image file is required");
+        }
+
+        String avatarUrl = cloudinaryService.uploadImage(file, "avatars");
+        currentUser.setAvatarUrl(avatarUrl);
+        currentUser.setUpdatedAt(java.time.LocalDateTime.now());
 
         User saved = userRepository.save(currentUser);
         return userMapper.toResponse(saved);
