@@ -61,13 +61,35 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(org.springframework.security.core.userdetails.UsernameNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleUsernameNotFound(
+            org.springframework.security.core.userdetails.UsernameNotFoundException ex) {
+        ErrorResponse error = new ErrorResponse(
+                ex.getMessage(),
+                HttpStatus.UNAUTHORIZED.value(),
+                LocalDateTime.now(),
+                List.of("Verifica tus credenciales e intenta de nuevo"));
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentials(
+            org.springframework.security.authentication.BadCredentialsException ex) {
+        ErrorResponse error = new ErrorResponse(
+                ex.getMessage(),
+                HttpStatus.UNAUTHORIZED.value(),
+                LocalDateTime.now(),
+                List.of("Verifica tus credenciales e intenta de nuevo"));
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex) {
         ErrorResponse error = new ErrorResponse(
-                "Unauthorized",
+                "Correo o contraseña inválidos",
                 HttpStatus.UNAUTHORIZED.value(),
                 LocalDateTime.now(),
-                List.of("Token JWT ausente o inválido"));
+                List.of("Verifica tus credenciales e intenta de nuevo"));
         return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
     }
 

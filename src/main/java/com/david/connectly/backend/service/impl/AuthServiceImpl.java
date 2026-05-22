@@ -32,10 +32,10 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse register(RegisterRequest request) {
         // Validar si el username o email ya existen (lógica simple)
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new IllegalArgumentException("Email is already registered");
+            throw new IllegalArgumentException("Este correo electrónico ya está registrado");
         }
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username is already taken");
+            throw new IllegalArgumentException("Este nombre de usuario ya está en uso");
         }
 
         // Crear el usuario y hashear la contraseña
@@ -54,18 +54,25 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        // En este ejemplo usamos el email. Si quieres soportar ambos (username or
-        // email),
-        // busca en BD primero para saber el email real.
+        // Primero verificar si el usuario existe
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseGet(() -> userRepository.findByUsername(request.getEmail())
-                        .orElseThrow(() -> new UsernameNotFoundException("User not found")));
+                        .orElse(null));
 
-        // Autenticar la contraseña
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        user.getEmail(), // Usamos el email como identificador principal en Spring Security
-                        request.getPassword()));
+        if (user == null) {
+            throw new UsernameNotFoundException("No existe una cuenta con ese correo electrónico");
+        }
+
+        // Autenticar la contraseña (si falla, lanza BadCredentialsException)
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            user.getEmail(),
+                            request.getPassword()));
+        } catch (org.springframework.security.authentication.BadCredentialsException e) {
+            throw new org.springframework.security.authentication.BadCredentialsException(
+                    "Correo o contraseña inválidos");
+        }
 
         // Si pasa la autenticación, generar token
         CustomUserDetails userDetails = new CustomUserDetails(user);
