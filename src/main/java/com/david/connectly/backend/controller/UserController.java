@@ -53,4 +53,10 @@ public class UserController {
             @RequestPart("file") MultipartFile file) {
         return ResponseEntity.ok(userService.uploadAvatar(id, file));
     }
+
+    @GetMapping
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
+    }
 }
+

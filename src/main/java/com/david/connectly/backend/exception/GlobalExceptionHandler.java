@@ -103,13 +103,25 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        ErrorResponse error = new ErrorResponse(
+                "La imagen excede el tamaño máximo permitido de 10MB",
+                HttpStatus.BAD_REQUEST.value(),
+                LocalDateTime.now(),
+                List.of("El archivo de imagen es demasiado grande. Por favor, selecciona una imagen de menor tamaño (máximo 10MB)."));
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
+        ex.printStackTrace();
         ErrorResponse error = new ErrorResponse(
-                "Internal server error",
+                "Internal server error: " + ex.getMessage(),
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 LocalDateTime.now(),
-                List.of("Ocurrió un error inesperado"));
+                List.of("Ocurrió un error inesperado: " + ex.getMessage()));
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

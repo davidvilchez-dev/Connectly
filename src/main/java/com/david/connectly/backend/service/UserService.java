@@ -19,4 +19,7 @@ public interface UserService {
     UserResponse updateProfile(Long id, UpdateProfileRequest request);
 
     UserResponse uploadAvatar(Long id, MultipartFile file);
+
+    List<UserResponse> getAllUsers();
 }
+

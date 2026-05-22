@@ -166,6 +166,15 @@
                     </excludes>
                 </configuration>
             </plugin>
+
+            <!-- Surefire Config para Java 21+ Mockito y ByteBuddy Warning -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+                </configuration>
+            </plugin>
             <!--Plugin para Jacoco> -->
                 <plugin>
                     <groupId>org.jacoco</groupId>

@@ -6,8 +6,10 @@ import com.david.connectly.backend.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -36,6 +38,13 @@ public class PostController {
     @PostMapping
     public ResponseEntity<PostResponse> createPost(@Valid @RequestBody PostRequest request) {
         return new ResponseEntity<>(postService.createPost(request), HttpStatus.CREATED);
+    }
+
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<PostResponse> createPostWithImage(
+            @RequestParam("content") String content,
+            @RequestParam(value = "image", required = false) MultipartFile image) {
+        return new ResponseEntity<>(postService.createPost(content, image), HttpStatus.CREATED);
     }
 
     @DeleteMapping("/{id}")

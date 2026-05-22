@@ -32,11 +32,16 @@ import static org.mockito.Mockito.*;
 @DisplayName("AuthServiceImpl - Pruebas unitarias")
 class AuthServiceImplTest {
 
-    @Mock private UserRepository userRepository;
-    @Mock private UserMapper userMapper;
-    @Mock private PasswordEncoder passwordEncoder;
-    @Mock private JwtService jwtService;
-    @Mock private AuthenticationManager authenticationManager;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private UserMapper userMapper;
+    @Mock
+    private PasswordEncoder passwordEncoder;
+    @Mock
+    private JwtService jwtService;
+    @Mock
+    private AuthenticationManager authenticationManager;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -91,7 +96,7 @@ class AuthServiceImplTest {
 
         assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Email is already registered");
+                .hasMessage("Este correo electrónico ya está registrado");
 
         verify(userRepository, never()).save(any());
     }
@@ -108,7 +113,7 @@ class AuthServiceImplTest {
 
         assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Username is already taken");
+                .hasMessage("Este nombre de usuario ya está en uso");
     }
 
     // ─── LOGIN ────────────────────────────────────────────────────────────────
@@ -143,6 +148,6 @@ class AuthServiceImplTest {
 
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(UsernameNotFoundException.class)
-                .hasMessage("User not found");
+                .hasMessage("No existe una cuenta con ese correo electrónico");
     }
 }

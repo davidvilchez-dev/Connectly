@@ -71,7 +71,7 @@ public class AuthServiceImpl implements AuthService {
                             request.getPassword()));
         } catch (org.springframework.security.authentication.BadCredentialsException e) {
             throw new org.springframework.security.authentication.BadCredentialsException(
-                    "Correo o contraseña inválidos");
+                    "La contraseña es incorrecta");
         }
 
         // Si pasa la autenticación, generar token

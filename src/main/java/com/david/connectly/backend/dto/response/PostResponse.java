@@ -13,4 +13,5 @@ public class PostResponse {
     private LocalDateTime updatedAt;
     private int commentsCount;
     private int likesCount;
+    private boolean liked;
 }

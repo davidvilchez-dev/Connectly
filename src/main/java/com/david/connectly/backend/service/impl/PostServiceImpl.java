@@ -10,9 +10,14 @@ import com.david.connectly.backend.mapper.PostMapper;
 import com.david.connectly.backend.repository.PostRepository;
 import com.david.connectly.backend.repository.UserRepository;
 import com.david.connectly.backend.security.SecurityUtils;
+import com.david.connectly.backend.service.CloudinaryService;
 import com.david.connectly.backend.service.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.david.connectly.backend.repository.LikeRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,10 +25,13 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class PostServiceImpl implements PostService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final PostMapper postMapper;
+    private final CloudinaryService cloudinaryService;
+    private final LikeRepository likeRepository;
 
     @Override
     public List<PostResponse> getFeed() {
@@ -33,9 +41,19 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public List<PostResponse> explorePosts() {
+        String currentEmail = SecurityUtils.getCurrentUserEmail();
+        User currentUser = currentEmail != null ? userRepository.findByEmail(currentEmail).orElse(null) : null;
+
         return postRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
-                .map(postMapper::toResponse)
+                .map(post -> {
+                    PostResponse response = postMapper.toResponse(post);
+                    if (currentUser != null) {
+                        boolean liked = likeRepository.findByPostIdAndUserId(post.getId(), currentUser.getId()).isPresent();
+                        response.setLiked(liked);
+                    }
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -43,7 +61,15 @@ public class PostServiceImpl implements PostService {
     public PostResponse getPostById(Long id) {
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found with id: " + id));
-        return postMapper.toResponse(post);
+        PostResponse response = postMapper.toResponse(post);
+        String currentEmail = SecurityUtils.getCurrentUserEmail();
+        if (currentEmail != null) {
+            userRepository.findByEmail(currentEmail).ifPresent(user -> {
+                boolean liked = likeRepository.findByPostIdAndUserId(post.getId(), user.getId()).isPresent();
+                response.setLiked(liked);
+            });
+        }
+        return response;
     }
 
     @Override
@@ -60,6 +86,31 @@ public class PostServiceImpl implements PostService {
         post.setUser(user);
         post.setCreatedAt(LocalDateTime.now());
         post.setUpdatedAt(null);
+
+        Post saved = postRepository.save(post);
+        return postMapper.toResponse(saved);
+    }
+
+    @Override
+    public PostResponse createPost(String content, MultipartFile image) {
+        String currentEmail = SecurityUtils.getCurrentUserEmail();
+        if (currentEmail == null) {
+            throw new IllegalArgumentException("No autorizado");
+        }
+
+        User user = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        Post post = new Post();
+        post.setContent(content);
+        post.setUser(user);
+        post.setCreatedAt(LocalDateTime.now());
+
+        // Subir imagen a Cloudinary si se proporcionó
+        if (image != null && !image.isEmpty()) {
+            String imageUrl = cloudinaryService.uploadImage(image, "posts");
+            post.setImageUrl(imageUrl);
+        }
 
         Post saved = postRepository.save(post);
         return postMapper.toResponse(saved);
