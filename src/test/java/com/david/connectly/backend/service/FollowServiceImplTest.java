@@ -168,4 +168,54 @@ class FollowServiceImplTest {
         assertThatThrownBy(() -> followService.isFollowing(99L))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
+
+    // ─── FOLLOW/UNFOLLOW ADDITIONAL ───────────────────────────────────────────
+
+    @Test
+    @DisplayName("followUser: lanza excepción si no está autenticado")
+    void followUser_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> followService.followUser(2L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("followUser: lanza excepción si el usuario autenticado no existe en bd")
+    void followUser_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> followService.followUser(2L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("unfollowUser: lanza excepción si no está autenticado")
+    void unfollowUser_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> followService.unfollowUser(2L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("unfollowUser: lanza excepción si el usuario autenticado no existe en bd")
+    void unfollowUser_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> followService.unfollowUser(2L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("isFollowing: lanza excepción si no está autenticado")
+    void isFollowing_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> followService.isFollowing(2L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("isFollowing: lanza excepción si el usuario autenticado no existe en bd")
+    void isFollowing_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> followService.isFollowing(2L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
 }

@@ -164,4 +164,63 @@ class CommentServiceImplTest {
         assertThatThrownBy(() -> commentService.deleteComment(999L))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
+
+    // ─── ADD/DELETE COMMENT ADDITIONAL ─────────────────────────────────────────
+
+    @Test
+    @DisplayName("addComment: lanza excepción si no está autenticado")
+    void addComment_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> commentService.addComment(10L, new CommentRequest()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("addComment: lanza excepción si el usuario autenticado no existe en bd")
+    void addComment_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> commentService.addComment(10L, new CommentRequest()))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("deleteComment: lanza excepción si no está autenticado")
+    void deleteComment_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> commentService.deleteComment(100L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("deleteComment: lanza excepción si el usuario autenticado no existe en bd")
+    void deleteComment_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> commentService.deleteComment(100L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("deleteComment: lanza ConflictException si el comentario no tiene usuario")
+    void deleteComment_shouldThrow_whenCommentUserIsNull() {
+        comment.setUser(null);
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(commentRepository.findById(100L)).thenReturn(Optional.of(comment));
+
+        assertThatThrownBy(() -> commentService.deleteComment(100L))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    @DisplayName("deleteComment: lanza ConflictException si el comentario tiene usuario pero id es nulo")
+    void deleteComment_shouldThrow_whenCommentUserIdIsNull() {
+        User commentUser = new User();
+        commentUser.setId(null);
+        comment.setUser(commentUser);
+
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(commentRepository.findById(100L)).thenReturn(Optional.of(comment));
+
+        assertThatThrownBy(() -> commentService.deleteComment(100L))
+                .isInstanceOf(ConflictException.class);
+    }
 }

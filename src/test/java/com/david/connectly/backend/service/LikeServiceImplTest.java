@@ -147,4 +147,38 @@ class LikeServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("99");
     }
+
+    // ─── LIKE/UNLIKE POST ADDITIONAL ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("likePost: lanza excepción si no está autenticado")
+    void likePost_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> likeService.likePost(10L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("likePost: lanza excepción si el usuario autenticado no existe en bd")
+    void likePost_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> likeService.likePost(10L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("unlikePost: lanza excepción si no está autenticado")
+    void unlikePost_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> likeService.unlikePost(10L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("unlikePost: lanza excepción si el usuario autenticado no existe en bd")
+    void unlikePost_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> likeService.unlikePost(10L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
 }

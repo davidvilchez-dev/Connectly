@@ -4,11 +4,13 @@ import com.david.connectly.backend.dto.request.PostRequest;
 import com.david.connectly.backend.dto.response.PostResponse;
 import com.david.connectly.backend.entity.Post;
 import com.david.connectly.backend.entity.User;
+import com.david.connectly.backend.entity.Like;
 import com.david.connectly.backend.exception.ConflictException;
 import com.david.connectly.backend.exception.ResourceNotFoundException;
 import com.david.connectly.backend.mapper.PostMapper;
 import com.david.connectly.backend.repository.PostRepository;
 import com.david.connectly.backend.repository.UserRepository;
+import com.david.connectly.backend.repository.LikeRepository;
 import com.david.connectly.backend.security.SecurityUtils;
 import com.david.connectly.backend.service.impl.PostServiceImpl;
 import org.junit.jupiter.api.AfterEach;
@@ -22,6 +24,7 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,9 +37,16 @@ import static org.mockito.Mockito.*;
 @DisplayName("PostServiceImpl - Pruebas unitarias")
 class PostServiceImplTest {
 
-    @Mock private PostRepository postRepository;
-    @Mock private UserRepository userRepository;
-    @Mock private PostMapper postMapper;
+    @Mock
+    private PostRepository postRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private PostMapper postMapper;
+    @Mock
+    private CloudinaryService cloudinaryService;
+    @Mock
+    private LikeRepository likeRepository;
 
     @InjectMocks
     private PostServiceImpl postService;
@@ -59,8 +69,7 @@ class PostServiceImplTest {
 
         // Simula usuario autenticado en el SecurityContext
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken("david@test.com", null, List.of())
-        );
+                new UsernamePasswordAuthenticationToken("david@test.com", null, List.of()));
     }
 
     @AfterEach
@@ -187,5 +196,197 @@ class PostServiceImplTest {
 
         assertThatThrownBy(() -> postService.deletePost(99L))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ─── CREATE POST WITH IMAGE ───────────────────────────────────────────────
+
+    @Test
+    @DisplayName("createPost (multipart): crea post con imagen exitosamente")
+    void createPostMultipart_shouldCreateWithImage_whenAuthenticated() {
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "image", "pic.jpg", "image/jpeg", "image bytes".getBytes());
+
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(cloudinaryService.uploadImage(any(), eq("posts"))).thenReturn("http://cloudinary.com/pic.jpg");
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> {
+            Post p = invocation.getArgument(0);
+            p.setId(10L);
+            return p;
+        });
+        when(postMapper.toResponse(any(Post.class))).thenReturn(postResponse);
+
+        PostResponse result = postService.createPost("My content", imageFile);
+
+        assertThat(result).isEqualTo(postResponse);
+        verify(cloudinaryService).uploadImage(any(), eq("posts"));
+        verify(postRepository).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("createPost (multipart): crea post sin imagen exitosamente")
+    void createPostMultipart_shouldCreateWithoutImage_whenAuthenticated() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> {
+            Post p = invocation.getArgument(0);
+            p.setId(10L);
+            return p;
+        });
+        when(postMapper.toResponse(any(Post.class))).thenReturn(postResponse);
+
+        PostResponse result = postService.createPost("My content without image", null);
+
+        assertThat(result).isEqualTo(postResponse);
+        verifyNoInteractions(cloudinaryService);
+        verify(postRepository).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("createPost (multipart): lanza excepción si no está autenticado")
+    void createPostMultipart_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+
+        try (MockedStatic<SecurityUtils> utils = mockStatic(SecurityUtils.class)) {
+            utils.when(SecurityUtils::getCurrentUserEmail).thenReturn(null);
+
+            assertThatThrownBy(() -> postService.createPost("Content", null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("No autorizado");
+        }
+    }
+
+    @Test
+    @DisplayName("createPost (multipart): lanza excepción si el usuario no existe")
+    void createPostMultipart_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> postService.createPost("Content", null))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Usuario no encontrado");
+    }
+
+    // ─── EXPLORE / FEED ADDITIONAL ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("explorePosts: retorna posts para usuario anónimo")
+    void explorePosts_shouldReturnAllPosts_whenAnonymous() {
+        SecurityContextHolder.clearContext();
+        try (MockedStatic<SecurityUtils> utils = mockStatic(SecurityUtils.class)) {
+            utils.when(SecurityUtils::getCurrentUserEmail).thenReturn(null);
+
+            when(postRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(post));
+            when(postMapper.toResponse(post)).thenReturn(postResponse);
+
+            List<PostResponse> result = postService.explorePosts();
+
+            assertThat(result).hasSize(1);
+            verifyNoInteractions(likeRepository);
+        }
+    }
+
+    // ─── GET POST BY ID ADDITIONAL ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("getPostById: retorna post para usuario anónimo sin chequear likes")
+    void getPostById_shouldReturnPost_whenAnonymous() {
+        SecurityContextHolder.clearContext();
+        try (MockedStatic<SecurityUtils> utils = mockStatic(SecurityUtils.class)) {
+            utils.when(SecurityUtils::getCurrentUserEmail).thenReturn(null);
+
+            when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+            when(postMapper.toResponse(post)).thenReturn(postResponse);
+
+            PostResponse result = postService.getPostById(10L);
+
+            assertThat(result).isEqualTo(postResponse);
+            verifyNoInteractions(userRepository);
+            verifyNoInteractions(likeRepository);
+        }
+    }
+
+    @Test
+    @DisplayName("getPostById: retorna post cuando el usuario autenticado no existe en bd")
+    void getPostById_shouldReturnPost_whenUserNotFoundInDb() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+        when(postMapper.toResponse(post)).thenReturn(postResponse);
+
+        PostResponse result = postService.getPostById(10L);
+
+        assertThat(result).isEqualTo(postResponse);
+        verifyNoInteractions(likeRepository);
+    }
+
+    @Test
+    @DisplayName("getPostById: marca post como gustado si existe like del usuario")
+    void getPostById_shouldMarkAsLiked_whenLikeExists() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+        when(postMapper.toResponse(post)).thenReturn(postResponse);
+        when(likeRepository.findByPostIdAndUserId(10L, 1L)).thenReturn(Optional.of(new Like()));
+
+        PostResponse result = postService.getPostById(10L);
+
+        assertThat(result).isEqualTo(postResponse);
+        assertThat(postResponse.isLiked()).isTrue();
+    }
+
+    // ─── CREATE POST (DTO) ADDITIONAL ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("createPost: lanza excepción si el usuario autenticado no existe")
+    void createPost_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        PostRequest request = new PostRequest();
+
+        assertThatThrownBy(() -> postService.createPost(request))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ─── DELETE POST ADDITIONAL ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("deletePost: lanza excepción si no está autenticado")
+    void deletePost_shouldThrow_whenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+        try (MockedStatic<SecurityUtils> utils = mockStatic(SecurityUtils.class)) {
+            utils.when(SecurityUtils::getCurrentUserEmail).thenReturn(null);
+
+            assertThatThrownBy(() -> postService.deletePost(10L))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("deletePost: lanza excepción si el usuario no existe en bd")
+    void deletePost_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> postService.deletePost(10L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("deletePost: lanza ConflictException si el post no tiene usuario")
+    void deletePost_shouldThrow_whenPostUserIsNull() {
+        post.setUser(null);
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> postService.deletePost(10L))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    @DisplayName("deletePost: lanza ConflictException si el post tiene usuario pero id es nulo")
+    void deletePost_shouldThrow_whenPostUserIdIsNull() {
+        User postUser = new User();
+        postUser.setId(null);
+        post.setUser(postUser);
+
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> postService.deletePost(10L))
+                .isInstanceOf(ConflictException.class);
     }
 }

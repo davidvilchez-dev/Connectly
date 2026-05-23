@@ -172,7 +172,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+                    <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
                 </configuration>
             </plugin>
             <!--Plugin para Jacoco> -->
@@ -180,6 +180,13 @@
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
                     <version>0.8.13</version>
+                    <configuration>
+                        <excludes>
+                            <exclude>com/david/connectly/backend/mapper/*Impl.class</exclude>
+                            <exclude>com/david/connectly/backend/entity/**</exclude>
+                            <exclude>com/david/connectly/backend/BackendApplication.class</exclude>
+                        </excludes>
+                    </configuration>
                     <executions>
                         <execution>
                             <goals>

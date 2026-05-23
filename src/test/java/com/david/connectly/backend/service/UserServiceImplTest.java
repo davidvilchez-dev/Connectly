@@ -13,6 +13,8 @@ import com.david.connectly.backend.mapper.UserMapper;
 import com.david.connectly.backend.repository.FollowRepository;
 import com.david.connectly.backend.repository.PostRepository;
 import com.david.connectly.backend.repository.UserRepository;
+import com.david.connectly.backend.repository.LikeRepository;
+import com.david.connectly.backend.entity.Like;
 import com.david.connectly.backend.service.impl.UserServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,11 +38,20 @@ import static org.mockito.Mockito.*;
 @DisplayName("UserServiceImpl - Pruebas unitarias")
 class UserServiceImplTest {
 
-    @Mock private UserRepository userRepository;
-    @Mock private PostRepository postRepository;
-    @Mock private FollowRepository followRepository;
-    @Mock private UserMapper userMapper;
-    @Mock private PostMapper postMapper;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private PostRepository postRepository;
+    @Mock
+    private FollowRepository followRepository;
+    @Mock
+    private UserMapper userMapper;
+    @Mock
+    private PostMapper postMapper;
+    @Mock
+    private CloudinaryService cloudinaryService;
+    @Mock
+    private LikeRepository likeRepository;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -58,8 +69,7 @@ class UserServiceImplTest {
         userResponse = new UserResponse();
 
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken("david@test.com", null, List.of())
-        );
+                new UsernamePasswordAuthenticationToken("david@test.com", null, List.of()));
     }
 
     @AfterEach
@@ -202,5 +212,207 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> userService.updateProfile(1L, request))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("already taken");
+    }
+
+    // ─── GET FOLLOWERS / FOLLOWING ERRORS ──────────────────────────────────────
+
+    @Test
+    @DisplayName("getUserFollowers: lanza ResourceNotFoundException si el usuario no existe")
+    void getUserFollowers_shouldThrow_whenUserNotFound() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.getUserFollowers(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("getUserFollowing: lanza ResourceNotFoundException si el usuario no existe")
+    void getUserFollowing_shouldThrow_whenUserNotFound() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.getUserFollowing(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ─── UPDATE PROFILE ADDITIONAL ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("updateProfile: lanza IllegalArgumentException si no está autenticado")
+    void updateProfile_shouldThrow_whenUnauthorized() {
+        SecurityContextHolder.clearContext();
+        UpdateProfileRequest request = new UpdateProfileRequest();
+
+        assertThatThrownBy(() -> userService.updateProfile(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unauthorized");
+    }
+
+    @Test
+    @DisplayName("updateProfile: lanza ResourceNotFoundException si el usuario autenticado no existe en bd")
+    void updateProfile_shouldThrow_whenAuthenticatedUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        UpdateProfileRequest request = new UpdateProfileRequest();
+
+        assertThatThrownBy(() -> userService.updateProfile(1L, request))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("updateProfile: actualiza solo campos no nulos ni vacíos")
+    void updateProfile_shouldUpdateOnlyNonNullFields() {
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setUsername(""); // vacío, no debe actualizarse
+        request.setBio("Nueva bio");
+        request.setAvatarUrl("http://nuevo.avatar");
+
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenReturn(user);
+        when(userMapper.toResponse(user)).thenReturn(userResponse);
+
+        UserResponse result = userService.updateProfile(1L, request);
+
+        assertThat(result).isEqualTo(userResponse);
+        assertThat(user.getUsername()).isEqualTo("david"); // mantiene el original
+        assertThat(user.getBio()).isEqualTo("Nueva bio");
+        assertThat(user.getAvatarUrl()).isEqualTo("http://nuevo.avatar");
+    }
+
+    // ─── UPLOAD AVATAR ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("uploadAvatar: sube avatar exitosamente")
+    void uploadAvatar_shouldUploadAndSave_whenValid() {
+        org.springframework.web.multipart.MultipartFile mockFile = mock(
+                org.springframework.web.multipart.MultipartFile.class);
+        when(mockFile.isEmpty()).thenReturn(false);
+        when(cloudinaryService.uploadImage(mockFile, "avatars")).thenReturn("http://cloudinary/avatar.jpg");
+
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenReturn(user);
+        when(userMapper.toResponse(user)).thenReturn(userResponse);
+
+        UserResponse result = userService.uploadAvatar(1L, mockFile);
+
+        assertThat(result).isEqualTo(userResponse);
+        assertThat(user.getAvatarUrl()).isEqualTo("http://cloudinary/avatar.jpg");
+    }
+
+    @Test
+    @DisplayName("uploadAvatar: lanza IllegalArgumentException si no está autenticado")
+    void uploadAvatar_shouldThrow_whenUnauthorized() {
+        SecurityContextHolder.clearContext();
+        org.springframework.web.multipart.MultipartFile mockFile = mock(
+                org.springframework.web.multipart.MultipartFile.class);
+
+        assertThatThrownBy(() -> userService.uploadAvatar(1L, mockFile))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("uploadAvatar: lanza ResourceNotFoundException si el usuario autenticado no existe en bd")
+    void uploadAvatar_shouldThrow_whenUserNotFound() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        org.springframework.web.multipart.MultipartFile mockFile = mock(
+                org.springframework.web.multipart.MultipartFile.class);
+
+        assertThatThrownBy(() -> userService.uploadAvatar(1L, mockFile))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("uploadAvatar: lanza ConflictException si actualiza avatar de otro usuario")
+    void uploadAvatar_shouldThrow_whenUpdatingOtherAvatar() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        org.springframework.web.multipart.MultipartFile mockFile = mock(
+                org.springframework.web.multipart.MultipartFile.class);
+
+        assertThatThrownBy(() -> userService.uploadAvatar(99L, mockFile))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    @DisplayName("uploadAvatar: lanza IllegalArgumentException si el archivo es nulo o vacío")
+    void uploadAvatar_shouldThrow_whenFileEmptyOrNull() {
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> userService.uploadAvatar(1L, null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        org.springframework.web.multipart.MultipartFile mockFile = mock(
+                org.springframework.web.multipart.MultipartFile.class);
+        when(mockFile.isEmpty()).thenReturn(true);
+
+        assertThatThrownBy(() -> userService.uploadAvatar(1L, mockFile))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ─── GET ALL USERS ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("getAllUsers: retorna lista de todos los usuarios")
+    void getAllUsers_shouldReturnAllUsers() {
+        when(userRepository.findAll()).thenReturn(List.of(user));
+        when(userMapper.toResponse(user)).thenReturn(userResponse);
+
+        List<UserResponse> result = userService.getAllUsers();
+
+        assertThat(result).hasSize(1).contains(userResponse);
+    }
+
+    // ─── GET USER POSTS ADDITIONAL ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("getUserPosts: retorna posts para usuario anónimo")
+    void getUserPosts_shouldReturnPosts_whenAnonymous() {
+        SecurityContextHolder.clearContext();
+        Post post = new Post();
+        post.setId(10L);
+        PostResponse postResponse = new PostResponse();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(postRepository.findAllByUserIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(post));
+        when(postMapper.toResponse(post)).thenReturn(postResponse);
+
+        List<PostResponse> result = userService.getUserPosts(1L);
+
+        assertThat(result).hasSize(1);
+        verifyNoInteractions(likeRepository);
+    }
+
+    @Test
+    @DisplayName("getUserPosts: retorna posts cuando el usuario autenticado no existe en bd")
+    void getUserPosts_shouldReturnPosts_whenAuthenticatedUserNotFoundInDb() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.empty());
+        Post post = new Post();
+        post.setId(10L);
+        PostResponse postResponse = new PostResponse();
+
+        when(postRepository.findAllByUserIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(post));
+        when(postMapper.toResponse(post)).thenReturn(postResponse);
+
+        List<PostResponse> result = userService.getUserPosts(1L);
+
+        assertThat(result).hasSize(1);
+        verifyNoInteractions(likeRepository);
+    }
+
+    @Test
+    @DisplayName("getUserPosts: marca post como gustado si existe like del usuario")
+    void getUserPosts_shouldMarkAsLiked_whenLikeExists() {
+        Post post = new Post();
+        post.setId(10L);
+        PostResponse postResponse = new PostResponse();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(postRepository.findAllByUserIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(post));
+        when(postMapper.toResponse(post)).thenReturn(postResponse);
+        when(likeRepository.findByPostIdAndUserId(10L, 1L)).thenReturn(Optional.of(new Like()));
+
+        List<PostResponse> result = userService.getUserPosts(1L);
+
+        assertThat(result).hasSize(1);
+        assertThat(postResponse.isLiked()).isTrue();
     }
 }
