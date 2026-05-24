@@ -116,10 +116,12 @@ public class UserServiceImpl implements UserService {
             currentUser.setUsername(request.getUsername());
         }
         if (request.getBio() != null) {
-            currentUser.setBio(request.getBio());
+            String bioVal = request.getBio().trim();
+            currentUser.setBio(bioVal.isEmpty() ? null : bioVal);
         }
         if (request.getAvatarUrl() != null) {
-            currentUser.setAvatarUrl(request.getAvatarUrl());
+            String avatarVal = request.getAvatarUrl().trim();
+            currentUser.setAvatarUrl(avatarVal.isEmpty() ? null : avatarVal);
         }
         currentUser.setUpdatedAt(LocalDateTime.now());
 
