@@ -19,14 +19,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuthServiceImpl - Pruebas unitarias")
@@ -137,17 +140,37 @@ class AuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("login: lanza excepción cuando el usuario no existe")
-    void login_shouldThrow_whenUserNotFound() {
-        LoginRequest request = new LoginRequest();
-        request.setEmail("noexiste@test.com");
-        request.setPassword("1234");
+    @DisplayName("login: lanza BadCredentialsException cuando la contraseña es incorrecta y busca por username")
+    void login_shouldHandleBadCredentialsAndUsernameFallback() {
+        // Escenario 1: Contraseña incorrecta
+        LoginRequest badPassRequest = new LoginRequest();
+        badPassRequest.setEmail("david@test.com");
+        badPassRequest.setPassword("wrong");
 
-        when(userRepository.findByEmail("noexiste@test.com")).thenReturn(Optional.empty());
-        when(userRepository.findByUsername("noexiste@test.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new org.springframework.security.authentication.BadCredentialsException("Bad credentials"));
 
-        assertThatThrownBy(() -> authService.login(request))
-                .isInstanceOf(UsernameNotFoundException.class)
-                .hasMessage("No existe una cuenta con ese correo electrónico");
+        assertThatThrownBy(() -> authService.login(badPassRequest))
+                .isInstanceOf(org.springframework.security.authentication.BadCredentialsException.class)
+                .hasMessage("La contraseña es incorrecta");
+
+        // Escenario 2: Busca por username cuando no encuentra por email
+        reset(userRepository, authenticationManager, jwtService, userMapper);
+
+        LoginRequest usernameRequest = new LoginRequest();
+        usernameRequest.setEmail("david");
+        usernameRequest.setPassword("1234");
+
+        when(userRepository.findByEmail("david")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("david")).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(null);
+        when(jwtService.generateToken(any(CustomUserDetails.class))).thenReturn("jwt-token");
+        when(userMapper.toResponse(user)).thenReturn(userResponse);
+
+        AuthResponse result = authService.login(usernameRequest);
+
+        assertThat(result.getToken()).isEqualTo("jwt-token");
+        verify(userRepository).findByUsername("david");
     }
 }

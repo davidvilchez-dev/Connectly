@@ -120,11 +120,28 @@ class PostControllerTest {
     }
 
     @Test
-    @DisplayName("deletePost: elimina un post y retorna 204")
-    void deletePost_shouldReturnNoContent() throws Exception {
+    @DisplayName("deletePost y updatePost: elimina y actualiza posts correctamente")
+    void deleteAndUpdatePost_shouldWork() throws Exception {
+        // Test DELETE
         doNothing().when(postService).deletePost(1L);
-
         mockMvc.perform(delete("/api/posts/1"))
                 .andExpect(status().isNoContent());
+
+        // Test PUT (updatePost)
+        MockMultipartFile updateImage = new MockMultipartFile(
+                "image", "updated.jpg", MediaType.IMAGE_JPEG_VALUE, "updated-bytes".getBytes());
+
+        when(postService.updatePost(eq(1L), eq("Updated content"), any(), eq(false))).thenReturn(postResponse);
+
+        mockMvc.perform(multipart("/api/posts/1")
+                        .file(updateImage)
+                        .param("content", "Updated content")
+                        .param("removeImage", "false")
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1));
     }
 }

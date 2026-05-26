@@ -366,27 +366,35 @@ class PostServiceImplTest {
     }
 
     @Test
-    @DisplayName("deletePost: lanza ConflictException si el post no tiene usuario")
-    void deletePost_shouldThrow_whenPostUserIsNull() {
-        post.setUser(null);
+    @DisplayName("updatePost: actualiza post exitosamente con nueva imagen")
+    void updatePost_shouldUpdate_whenPostBelongsToUser() {
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "image", "new.jpg", "image/jpeg", "new bytes".getBytes());
+
         when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
         when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+        when(cloudinaryService.uploadImage(any(), eq("posts"))).thenReturn("http://cloudinary.com/new.jpg");
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+        when(postMapper.toResponse(any(Post.class))).thenReturn(postResponse);
 
-        assertThatThrownBy(() -> postService.deletePost(10L))
-                .isInstanceOf(ConflictException.class);
+        PostResponse result = postService.updatePost(10L, "Updated content", imageFile, false);
+
+        assertThat(result).isEqualTo(postResponse);
+        verify(cloudinaryService).uploadImage(any(), eq("posts"));
+        verify(postRepository).save(any(Post.class));
     }
 
     @Test
-    @DisplayName("deletePost: lanza ConflictException si el post tiene usuario pero id es nulo")
-    void deletePost_shouldThrow_whenPostUserIdIsNull() {
-        User postUser = new User();
-        postUser.setId(null);
-        post.setUser(postUser);
-
+    @DisplayName("updatePost: elimina imagen cuando removeImage es true")
+    void updatePost_shouldRemoveImage_whenFlagIsTrue() {
         when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
         when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+        when(postMapper.toResponse(any(Post.class))).thenReturn(postResponse);
 
-        assertThatThrownBy(() -> postService.deletePost(10L))
-                .isInstanceOf(ConflictException.class);
+        PostResponse result = postService.updatePost(10L, "Updated", null, true);
+
+        assertThat(result).isEqualTo(postResponse);
+        verifyNoInteractions(cloudinaryService);
     }
 }

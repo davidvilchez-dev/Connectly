@@ -17,5 +17,7 @@ public interface PostService {
 
     PostResponse createPost(String content, MultipartFile image);
 
+    PostResponse updatePost(Long id, String content, MultipartFile image, boolean removeImage);
+
     void deletePost(Long id);
 }

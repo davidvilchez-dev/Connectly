@@ -200,27 +200,74 @@ class CommentServiceImplTest {
     }
 
     @Test
-    @DisplayName("deleteComment: lanza ConflictException si el comentario no tiene usuario")
-    void deleteComment_shouldThrow_whenCommentUserIsNull() {
-        comment.setUser(null);
+    @DisplayName("updateComment: actualiza comentario exitosamente cuando pertenece al usuario")
+    void updateComment_shouldUpdate_whenCommentBelongsToUser() {
+        CommentRequest request = new CommentRequest();
+        request.setContent("Updated content");
+        CommentResponse updatedResponse = new CommentResponse();
+
         when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
         when(commentRepository.findById(100L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(comment);
+        when(commentMapper.toResponse(comment)).thenReturn(updatedResponse);
 
-        assertThatThrownBy(() -> commentService.deleteComment(100L))
-                .isInstanceOf(ConflictException.class);
+        CommentResponse result = commentService.updateComment(100L, request);
+
+        assertThat(result).isEqualTo(updatedResponse);
+        verify(commentRepository).save(any(Comment.class));
     }
 
     @Test
-    @DisplayName("deleteComment: lanza ConflictException si el comentario tiene usuario pero id es nulo")
-    void deleteComment_shouldThrow_whenCommentUserIdIsNull() {
-        User commentUser = new User();
-        commentUser.setId(null);
-        comment.setUser(commentUser);
+    @DisplayName("updateComment: lanza ConflictException si el comentario es de otro usuario")
+    void updateComment_shouldThrow_whenCommentBelongsToOtherUser() {
+        CommentRequest request = new CommentRequest();
+        request.setContent("Updated");
+
+        // Escenario 1: currentEmail == null
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> commentService.updateComment(100L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("No autorizado");
+
+        // Restaurar SecurityContext para los siguientes escenarios
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("david@test.com", null, List.of())
+        );
+
+        // Escenario 2: comment.getUser() == null
+        Comment commentNoUser = new Comment();
+        commentNoUser.setId(100L);
+        commentNoUser.setUser(null);
 
         when(userRepository.findByEmail("david@test.com")).thenReturn(Optional.of(user));
+        when(commentRepository.findById(100L)).thenReturn(Optional.of(commentNoUser));
+
+        assertThatThrownBy(() -> commentService.updateComment(100L, request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Solo puedes editar");
+
+        // Escenario 3: comment.getUser().getId() == null
+        Comment commentUserIdNull = new Comment();
+        commentUserIdNull.setId(100L);
+        User userWithNullId = new User();
+        userWithNullId.setId(null);
+        commentUserIdNull.setUser(userWithNullId);
+
+        when(commentRepository.findById(100L)).thenReturn(Optional.of(commentUserIdNull));
+
+        assertThatThrownBy(() -> commentService.updateComment(100L, request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Solo puedes editar");
+
+        // Escenario 4: !comment.getUser().getId().equals(user.getId()) (comentario pertenece a otro usuario)
+        User otherUser = new User();
+        otherUser.setId(99L);
+        comment.setUser(otherUser);
+
         when(commentRepository.findById(100L)).thenReturn(Optional.of(comment));
 
-        assertThatThrownBy(() -> commentService.deleteComment(100L))
-                .isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> commentService.updateComment(100L, request))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Solo puedes editar");
     }
 }

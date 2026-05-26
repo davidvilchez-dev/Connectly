@@ -85,4 +85,29 @@ public class CommentServiceImpl implements CommentService {
 
         commentRepository.delete(comment);
     }
+
+    @Override
+    public CommentResponse updateComment(Long id, CommentRequest request) {
+        String currentEmail = SecurityUtils.getCurrentUserEmail();
+        if (currentEmail == null) {
+            throw new IllegalArgumentException("No autorizado");
+        }
+
+        User user = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        Comment comment = commentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Comentario no encontrado con id: " + id));
+
+        if (comment.getUser() == null || comment.getUser().getId() == null
+                || !comment.getUser().getId().equals(user.getId())) {
+            throw new ConflictException("Solo puedes editar tus propios comentarios");
+        }
+
+        comment.setContent(request.getContent());
+        comment.setUpdatedAt(LocalDateTime.now());
+
+        Comment saved = commentRepository.save(comment);
+        return commentMapper.toResponse(saved);
+    }
 }

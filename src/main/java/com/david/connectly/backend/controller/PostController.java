@@ -47,6 +47,15 @@ public class PostController {
         return new ResponseEntity<>(postService.createPost(content, image), HttpStatus.CREATED);
     }
 
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<PostResponse> updatePost(
+            @PathVariable Long id,
+            @RequestParam("content") String content,
+            @RequestParam(value = "image", required = false) MultipartFile image,
+            @RequestParam(value = "removeImage", required = false, defaultValue = "false") boolean removeImage) {
+        return ResponseEntity.ok(postService.updatePost(id, content, image, removeImage));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePost(@PathVariable Long id) {
         postService.deletePost(id);

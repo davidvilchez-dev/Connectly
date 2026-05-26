@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EntityTest {
 
     @Test
-    @DisplayName("User: prueba de todos los campos de entidad")
+    @DisplayName("User: prueba de todos los campos, prePersist y preUpdate")
     void testUserEntity() {
         User user = new User();
         user.setId(1L);
@@ -29,10 +29,14 @@ class EntityTest {
         List<Post> posts = new ArrayList<>();
         List<Comment> comments = new ArrayList<>();
         List<Like> likes = new ArrayList<>();
+        List<Follow> followers = new ArrayList<>();
+        List<Follow> following = new ArrayList<>();
 
         user.setPosts(posts);
         user.setComments(comments);
         user.setLikes(likes);
+        user.setFollowers(followers);
+        user.setFollowing(following);
 
         assertThat(user.getId()).isEqualTo(1L);
         assertThat(user.getUsername()).isEqualTo("username");
@@ -45,6 +49,25 @@ class EntityTest {
         assertThat(user.getPosts()).isSameAs(posts);
         assertThat(user.getComments()).isSameAs(comments);
         assertThat(user.getLikes()).isSameAs(likes);
+        assertThat(user.getFollowers()).isSameAs(followers);
+        assertThat(user.getFollowing()).isSameAs(following);
+
+        // Probar @PrePersist
+        User newUser = new User();
+        newUser.prePersist();
+        assertThat(newUser.getCreatedAt()).isNotNull();
+
+        // Probar @PreUpdate
+        User existingUser = new User();
+        existingUser.preUpdate();
+        assertThat(existingUser.getUpdatedAt()).isNotNull();
+
+        // Probar @AllArgsConstructor
+        User fullUser = new User(1L, "u", "e@t.com", "p", "b", "a",
+                LocalDateTime.now(), LocalDateTime.now(),
+                new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>(), new ArrayList<>());
+        assertThat(fullUser.getId()).isEqualTo(1L);
     }
 
     @Test
@@ -74,6 +97,11 @@ class EntityTest {
         assertThat(post.getUser()).isSameAs(user);
         assertThat(post.getComments()).isSameAs(comments);
         assertThat(post.getLikes()).isSameAs(likes);
+
+        // Probar @AllArgsConstructor
+        Post fullPost = new Post(1L, "c", "img", LocalDateTime.now(), LocalDateTime.now(),
+                new User(), new ArrayList<>(), new ArrayList<>());
+        assertThat(fullPost.getId()).isEqualTo(1L);
     }
 
     @Test
@@ -97,6 +125,11 @@ class EntityTest {
         assertThat(comment.getUpdatedAt()).isEqualTo(now);
         assertThat(comment.getUser()).isSameAs(user);
         assertThat(comment.getPost()).isSameAs(post);
+
+        // Probar @AllArgsConstructor
+        Comment fullComment = new Comment(1L, "c", LocalDateTime.now(), LocalDateTime.now(),
+                new User(), new Post());
+        assertThat(fullComment.getId()).isEqualTo(1L);
     }
 
     @Test
@@ -116,6 +149,10 @@ class EntityTest {
         assertThat(like.getCreatedAt()).isEqualTo(now);
         assertThat(like.getUser()).isSameAs(user);
         assertThat(like.getPost()).isSameAs(post);
+
+        // Probar @AllArgsConstructor
+        Like fullLike = new Like(1L, new User(), new Post(), LocalDateTime.now());
+        assertThat(fullLike.getId()).isEqualTo(1L);
     }
 
     @Test
@@ -135,5 +172,9 @@ class EntityTest {
         assertThat(follow.getCreatedAt()).isEqualTo(now);
         assertThat(follow.getFollower()).isSameAs(follower);
         assertThat(follow.getFollowing()).isSameAs(following);
+
+        // Probar @AllArgsConstructor
+        Follow fullFollow = new Follow(1L, new User(), new User(), LocalDateTime.now());
+        assertThat(fullFollow.getId()).isEqualTo(1L);
     }
 }

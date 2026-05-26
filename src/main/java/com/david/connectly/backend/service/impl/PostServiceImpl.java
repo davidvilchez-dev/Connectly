@@ -117,6 +117,38 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    public PostResponse updatePost(Long id, String content, MultipartFile image, boolean removeImage) {
+        String currentEmail = SecurityUtils.getCurrentUserEmail();
+        if (currentEmail == null) {
+            throw new IllegalArgumentException("No autorizado");
+        }
+
+        User user = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Publicación no encontrada con id: " + id));
+
+        if (post.getUser() == null || post.getUser().getId() == null || !post.getUser().getId().equals(user.getId())) {
+            throw new ConflictException("Solo puedes editar tus propias publicaciones");
+        }
+
+        post.setContent(content);
+
+        if (removeImage) {
+            post.setImageUrl(null);
+        } else if (image != null && !image.isEmpty()) {
+            String imageUrl = cloudinaryService.uploadImage(image, "posts");
+            post.setImageUrl(imageUrl);
+        }
+
+        post.setUpdatedAt(LocalDateTime.now());
+
+        Post saved = postRepository.save(post);
+        return postMapper.toResponse(saved);
+    }
+
+    @Override
     public void deletePost(Long id) {
         String currentEmail = SecurityUtils.getCurrentUserEmail();
         if (currentEmail == null) {

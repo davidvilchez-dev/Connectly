@@ -79,11 +79,28 @@ class CommentControllerTest {
     }
 
     @Test
-    @DisplayName("deleteComment: elimina un comentario por id y retorna 204")
-    void deleteComment_shouldReturnNoContent() throws Exception {
+    @DisplayName("deleteComment y updateComment: elimina y actualiza comentarios correctamente")
+    void deleteAndUpdateComment_shouldWork() throws Exception {
+        // Test DELETE
         doNothing().when(commentService).deleteComment(1L);
-
         mockMvc.perform(delete("/api/comments/1"))
                 .andExpect(status().isNoContent());
+
+        // Test PUT (updateComment)
+        CommentRequest updateRequest = new CommentRequest();
+        updateRequest.setContent("Updated Comment");
+        updateRequest.setPostId(1L);
+        CommentResponse updatedResponse = new CommentResponse();
+        updatedResponse.setId(1L);
+        updatedResponse.setContent("Updated Comment");
+
+        when(commentService.updateComment(eq(1L), any(CommentRequest.class))).thenReturn(updatedResponse);
+
+        mockMvc.perform(put("/api/comments/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.content").value("Updated Comment"));
     }
 }
